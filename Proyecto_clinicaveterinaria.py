@@ -11,8 +11,8 @@ cont_mascota_id = 1
 cont_atencion_id = 1
 
 DATA_DIR = "data"
-MASCOTAS_ARCH = os.path.join(DATA_DIR, "mascotas.csv")
-ATENCION_ARCH = os.path.join(DATA_DIR, "atenciones.csv")
+MASCOTAS_FILE = os.path.join(DATA_DIR, "mascotas.csv")
+ATENCIONES_FILE = os.path.join(DATA_DIR, "atenciones.csv")
 
 def aseg_data_dir():
     if not os.path.exists(DATA_DIR): #Para verificar la ruta de DATA_DIR
@@ -25,7 +25,7 @@ def validar_int(value_str, field_name="valor"): #Para convertir una cadena de te
     except ValueError: #Si la conversion falla, python captura el error.
         raise ValueError(f"{field_name} debe ser un número entero.") #En lugar de dejar que el programa se detenga con el msje predeterminado de python, la función levanta la excepción con un mensaje personalizado.
     
-def validate_positivo_int(value_str, field_name="valor"): #Sirve para asegurar que un valor de entrada sea un nro entero y ademas, positivo o cero (no negativo).
+def validate_positive_int(value_str, field_name="valor"): #Sirve para asegurar que un valor de entrada sea un nro entero y ademas, positivo o cero (no negativo).
     val = validar_int(value_str, field_name) 
     if val < 0: #Si val es menor a 0, lanzará un error con el mensaje de abajo.
         raise ValueError(f"{field_name} debe ser positivo o cero.")
@@ -162,3 +162,267 @@ def registro_atencion(id_mascota: int, fecha: str, descripcion: str, costo: floa
     atenciones.append(atencion)
     cont_atencion_id += 1
     return atencion
+
+
+def lista_atenciones_por_mascota(id_mascota: int): #Esta función tiene como objetivo filtrar y mostrar todas las atenciones veterinarias que han sido registradas para una mascota especifica determinada por su ID.
+    res = [a for a in atenciones if a.get("id_mascota") == id_mascota]
+    if not res:
+        print("No hay atenciones para esa mascota.")
+        return
+    for a in res:
+        print(f"ID: {a['id']} | Fecha: {a['fecha']} | Descripción: {a['descripcion']} | Costo: {a['costo']} | Veterinario: {a['veterinario']}")
+
+
+#--- REPORTES ---
+def gasto_por_rut(rut_dueño: str): #Tiene como objetivo calcular y mostrar el gasto veterinario total incurrido por un RUT, desglosando este gasto por cada una de sus mascotas
+    rut_norm = rut_dueño.strip().upper() #Normaliza el RUT de entrada (limpia espacios y convierte a mayúsculas)
+#Encontrar mascota por dueño
+    mascotas_del_dueño = [m for m in mascotas if m.get("rut_dueño", "").upper() == rut_norm] #Filtra la lista global "mascotas" para encontrar todas las mascotas cuyo dueño coincide con el "rut_norm".
+    if not mascotas_del_dueño: 
+        print("No se encontraron mascotas para ese RUT.") #Si la lista está vacía, imprime un mensaje de no encontrado y finaliza.
+        return
+    total = 0.0 #Contador de gasto total
+    detalle = [] #Lista que almacenará tuplas con el desglose del gasto
+    for m in mascotas_del_dueño: #Inicio de bucle del cálculo. 
+        m_atenciones = [a for a in atenciones if a.get("id_mascota") == m.get("id")] #Para cada mascota filtra la lista global "atenciones" para encontrar solo sus atenciones.
+        sum_m = sum(a.get("costo", 0.0) for a in m_atenciones) #Calcula la suma de los costos de esas atenciones.
+        detalle.append((m, sum_m, m_atenciones)) #Almacena el resultado de la mascota en la lista detalle
+        total += sum_m #Acumula el subtotal al "total" general 
+#Mostrar
+    print(f"\nGasto total para RUT {rut_norm}: {total}") #Imprime el monto total gastado por el dueño en todas sus mascotas
+    for m, sum_m, m_at in detalle: #Itera sobre la lista "detalle" e imprime el gasto desglosado por cada mascota
+        print(f"- Mascota ID {m['id']} {m['nombre']}: {sum_m} (Atenciones: {len(m_at)})")
+
+
+#--- CSV IMPORTACIÓN Y EXPORTACIÓN ---
+def exportar_a_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE): #Es la encargada de guardar los datos. Toma los datos de las colecciones globales y los escribe en archivos de texto con el formato CSV
+    aseg_data_dir() #Llama a una función auxiliar para asegurar que el directorio donde se guardaran los archivos exista.
+# Exportar mascotas
+    with open(mascotas_file, mode="w", newline='', encoding='utf-8') as f: #Abre el archivo especificado en modo de escritura
+        writer = csv.DictWriter(f, fieldnames=["id", "nombre", "especie", "raza", "edad", "rut_dueño"]) #Crea un objeto "dicwriter" qie es ideal para escribir diccionarios en CSV
+        writer.writeheader()
+    for m in mascotas: #Itera sobre cada diccionario de mascota.
+        writer.writerow({k: m.get(k, "") for k in ("id", "nombre", "especie", "raza", "edad", "rut_dueño")}) #Escribe cada mascota como una fila.
+# Exportar atenciones
+    with open(atenciones_file, mode="w", newline='', encoding='utf-8') as f: #El proceso se repite de manera identica para la lista "atenciones"
+        writer = csv.DictWriter(f, fieldnames=["id", "id_mascota", "fecha", "descripcion", "costo", "veterinario"])
+        writer.writeheader()
+    for a in atenciones:
+        writer.writerow({k: a.get(k, "") for k in ("id", "id_mascota", "fecha", "descripcion", "costo", "veterinario")})
+    print(f"Datos exportados a: {mascotas_file} y {atenciones_file}") #Imprime un mensaje confirmando que la operación se completó exitosamente.
+
+
+def importar_de_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE): #Esta función es responsable de la inicialización y carga de datos en el sistema.
+    global mascotas, atenciones, cont_mascota_id, cont_mascota_id #Declara que la función va a reemplazar completamente las listas globales de "mascotas" y "atenciones", y que va a modificar los contadores de ID
+    aseg_data_dir() #Asegura que el directorio de datos exista
+    loaded_mascotas = [] #Se inicializan las listas temporales
+    loaded_atenciones = []
+
+    if os.path.exists(mascotas_file): #Comprueba si el archivo existe
+        with open(mascotas_file, mode="r", newline='', encoding='utf-8') as f: #Abre el archivo en modo lectura "r". utiliza csv.DictReader. Este objeto lee cada línea de CSV y la convierte en diccionario.
+            reader = csv.DictReader(f) #Utiliza csv.DictReader para leer cada línea del CSV y convertirla en un diccionario
+            for row in reader: #El código itera sobre cada "row" (diccionario) del lector.
+                try: #Utiliza try/except para intentar convertir el id a entero. Si la conversión falla, esa fila se salta "continue".
+                    mid = int(row.get("id", "0"))
+                except ValueError:
+                    continue
+            loaded_mascotas.append({ #Creación del diccionario
+                "id": mid,
+                "nombre": row.get("nombre", "").strip(),
+                "especie": row.get("especie", "").strip(),
+                "raza": row.get("raza", "").strip(),
+                "edad": int(row.get("edad") or 0),
+                "rut_dueño": row.get("rut_dueño", "").strip().upper(),
+            })
+    else:
+        print(f"Archivo {mascotas_file} no encontrado. Se creará al exportar.")
+
+    if os.path.exists(atenciones_file): #Aqui carga el archivo de atenciones. El proceso es similiar al de mascotas
+        with open(atenciones_file, mode="r", newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    aid = int(row.get("id", "0"))
+                    id_masc = int(row.get("id_mascota", "0"))
+                    costo = float(row.get("costo", "0"))
+                except ValueError:
+                    continue
+                loaded_atenciones.append({
+                    "id": aid,
+                    "id_mascota": id_masc,
+                    "fecha": row.get("fecha", "").strip(),
+                    "descripcion": row.get("descripcion", "").strip(),
+                    "costo": costo,
+                    "veterinario": row.get("veterinario", "").strip(),
+                })
+    else:
+        print(f"Archivo {atenciones_file} no encontrado. Se creará al exportar.")
+
+# Reemplazar datos actuales con lo cargado
+    mascotas = loaded_mascotas #Las listas globales de trabajo son reemplazadas por los datos recién cargados
+    atenciones = loaded_atenciones
+
+# Actualizar contadores de ID para evitar colisiones (Sincronización)
+    max_mid = max((m["id"] for m in mascotas), default=0) #Encuentra el ID más alto en la lista de mascotas cargadas
+    max_aid = max((a["id"] for a in atenciones), default=0) #El mismo proceso pero en atenciones
+    cont_mascota_id = max_mid + 1 #El contador global se establece en el máximo ID encontrado más uno. Esto garantiza que si se añaden nuevas mascotas despues de la importanción, estas tendrán un ID único que no chocará con los datos cargados.
+    cont_atencion_id = max_aid + 1 #El mismo proceso que con mascotas
+
+
+    print(f"Importación completada. Mascotas: {len(mascotas)}, Atenciones: {len(atenciones)}")
+
+
+
+#--- MENÚ ---
+def mostrar_menu(): #Esta función está encargada de presentar las opciones al usuario
+    print("\n=== MENÚ VETERINARIA PETCARE ===")
+    print("1. Registrar mascota")
+    print("2. Actualizar mascota")
+    print("3. Eliminar mascota")
+    print("4. Listar mascotas")
+    print("5. Registrar atención médica")
+    print("6. Listar atenciones de una mascota")
+    print("7. Reporte de gasto por RUT")
+    print("8. Exportar datos a CSV")
+    print("9. Importar datos desde CSV")
+    print("0. Salir")
+
+
+#--- INPUT ---
+def input_mascota_interactivo(): #Esta función maneja el flujo interactivo para la creación de un nuevo registro de mascota. Su principal rol es recopilar datos del usuario y utilizar las funciones de validacion.
+    try:
+        nombre = input("Nombre: ")
+        especie = input("Especie: ")
+        raza = input("Raza: ")
+        edad = validate_positive_int(input("Edad (años): "), "Edad")
+        rut_dueño = validar_rut(input("RUT dueño (ej: 12345678-9): "))
+        mascota = add_mascota(nombre, especie, raza, edad, rut_dueño)
+        print(f"Mascota registrada con ID {mascota['id']}")
+    except Exception as e:
+        print(f"Error al registrar mascota: {e}")
+
+
+
+def input_update_mascota(): #Maneja el flujo interactivo para modificar los datos de una mascota existente. Permite al usuario actualizar solo los campos que desee, dejando los demas con su valor original.
+    try:
+        mid = validate_positive_int(input("ID de la mascota a actualizar: "), "ID")
+        m = encontrar_mascota_por_id(mid)
+        if not m:
+            print("Mascota no encontrada.")
+            return
+        print("Dejar en blanco para no cambiar el campo.")
+        nuevo_nombre = input(f"Nombre [{m['nombre']}]: ") or m['nombre']
+        nueva_especie = input(f"Especie [{m['especie']}]: ") or m['especie']
+        nueva_raza = input(f"Raza [{m['raza']}]: ") or m['raza']
+        nueva_edad_str = input(f"Edad [{m['edad']}]: ") #Valor de entrada original (string)
+        nueva_edad = m['edad'] if nueva_edad_str.strip() == "" else validate_positive_int(nueva_edad_str, "Edad") #Valor procesado, validad y convertido a nro entero (int)
+        nuevo_rut_str = input(f"RUT dueño [{m['rut_dueño']}]: ")
+        nuevo_rut = m['rut_dueño'] if nuevo_rut_str.strip() == "" else validate_rut(nuevo_rut_str)
+
+
+        updated = update_mascota(mid, nombre=nuevo_nombre, especie=nueva_especie, raza=nueva_raza, edad=nueva_edad, rut_dueño=nuevo_rut)
+        print("Mascota actualizada:")
+        print(updated)
+    except Exception as e:
+        print(f"Error al actualizar mascota: {e}")
+
+
+
+def input_delete_mascota(): #Maneja el flujo interactivo para eliminar una mascota especifica, incluyendo un paso de confirmación de seguridad
+    try:
+        mid = validate_positive_int(input("ID de la mascota a eliminar: "), "ID")
+        confirm = input("¿Confirma eliminación? (S/N): ").strip().lower()
+        if confirm != 's':
+            print("Eliminación cancelada.")
+            return
+        delete_mascota(mid)
+        print("Mascota eliminada (y atenciones relacionadas).")
+    except Exception as e:
+        print(f"Error al eliminar mascota: {e}")
+
+
+
+def input_registrar_atencion(): #Función para registrar una nueva atención veterinaria
+    try:
+        mid = validate_positive_int(input("ID de la mascota: "), "ID")
+        fecha = validar_fecha(input("Fecha (AAAA-MM-DD): "))
+        descripcion = input("Descripción: ")
+        costo = validate_positive_float(input("Costo: "), "Costo")
+        vet = input("Veterinario: ")
+        at = validar_fecha(mid, fecha, descripcion, costo, vet)
+        print(f"Atención registrada con ID {at['id']}")
+    except Exception as e:
+        print(f"Error al registrar atención: {e}")
+
+
+
+def input_lista_atenciones(): #Permite al usuario consultar el historial de atenciones médicas para una mascota especifica.
+    try:
+        mid = validate_positive_int(input("ID de la mascota: "), "ID")
+        lista_atenciones_por_mascota(mid)
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+
+def input_reporte_gasto(): #Esta funciión maneja la solicitud de un informe de gastos por dueño
+    try:
+        rut = validar_rut(input("RUT dueño (ej: 12345678-9): "))
+        gasto_por_rut(rut)
+    except Exception as e:
+        print(f"Error al generar reporte: {e}")
+
+
+
+def input_exportar(): #Permite al usuario guardar el estado actual de las listas en archivos formato CSV
+    try:
+        exportar_a_csv()
+    except Exception as e:
+        print(f"Error al exportar: {e}")
+
+
+
+def input_importar(): #Permite al usuario cargar datos previamente guardados desde archivos CSV a las colecciones globales del programa.
+    try:
+        importar_de_csv()
+    except Exception as e:
+        print(f"Error al importar: {e}")
+
+
+
+#--- ENTRADA ---
+def main(): #Esta función es el punto de entrada del programa, su proposito es inicializar el sistema, manejar el ciclo de la aplicación (menú) y dirigir el flujo de ejecución.
+    print("Bienvenido a Veterinaria PETCARE - Sistema de Gestión (Consola)")
+    # Intentar cargar datos si existen
+    importar_de_csv() #Lla a la función de importación para intentar cargar automaticamente los datos de mascotas y atenciones que hayan sido guardados en archivos CSV durante una sesión anterior.
+    while True: #Inicia un bucle infinito
+        mostrar_menu() #Llama a la función que imprime todas las opciones disponibles en la consola
+        opcion = input("Seleccione una opción: ").strip() #Lee la entrada del usuario y limpia de espacios con ".strip"
+        if opcion == '1':
+            input_mascota_interactivo()
+        elif opcion == '2':
+            input_update_mascota()
+        elif opcion == '3':
+            input_delete_mascota()
+        elif opcion == '4':
+            list_mascotas()
+        elif opcion == '5':
+            input_registrar_atencion()
+        elif opcion == '6':
+            input_lista_atenciones()
+        elif opcion == '7':
+            input_reporte_gasto()
+        elif opcion == '8':
+            input_exportar()
+        elif opcion == '9':
+            input_importar()
+        elif opcion == '0':
+            print("Saliendo. ¡Hasta luego!")
+            break
+        else:
+            print("Opción no válida. Intente nuevamente.")
+
+
+
+if __name__ == "__main__": #Asegura que la función main() solo se ejecute si el script es iniciado directamente por el usuario
+    main() 
