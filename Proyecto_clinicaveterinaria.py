@@ -1,7 +1,7 @@
-import csv
-import os
-import re
-from datetime import datetime
+import csv #Para leer y escribir archivos CSV
+import os #Permite interactuar con el SO
+import re #Para trabajar con expresiones regulares (regex), que permiten validar patrones de texto
+from datetime import datetime #Para manejar fechas
 
 
 mascotas = []
@@ -9,6 +9,8 @@ atenciones = []
 
 cont_mascota_id = 1
 cont_atencion_id = 1
+
+
 
 DATA_DIR = "data"
 MASCOTAS_FILE = os.path.join(DATA_DIR, "mascotas.csv")
@@ -42,7 +44,7 @@ def validate_positive_float(value_str, field_name="valor"): #Función identica a
 
 def validar_rut(rut: str): #Validación básica para RUT 
     rut = rut.strip() #Elimina cualquier espacio en blanco al inicio o al final de la cadena de entrada.
-    if not re.fullmatch(r"\d{1,8}-{0-9kK}", rut): #Utiliza esta función para verificar si toda la cadena limpia coincide con el patron esperado ("\d{1-8}"" de 1 a 8 dígitos numéricos(0-9), "-"" un guión, "[0-9kK]" un dígito final que puede ser un nro 0-9 o una letras k-K)
+    if not re.fullmatch(r"\d{1,8}-[0-9kK]", rut): #Utiliza esta función para verificar si toda la cadena limpia coincide con el patron esperado ("\d{1-8}"" de 1 a 8 dígitos numéricos(0-9), "-"" un guión, "[0-9kK]" un dígito final que puede ser un nro 0-9 o una letras k-K)
         raise ValueError("RUT inválido. Formato esperado: 12345678-9") #si re.fullmatch falla se lanza un ValueError
     return rut.upper() #Si la validación es exitosa, convierte toda la cadena en mayúsculas y la devuelve.
 
@@ -62,11 +64,16 @@ def encontrar_mascota_por_id(mid: int): #Esta función tiene la tarea de buscar 
 def duplicado_mascota(nombre: str, rut_dueño: str, excluir_id: int = None): #Esta función se utiliza para verificar si ya existe una mascota inscrita con el mismo nombre bajo el mismo dueño (rut).
     nombre_norm = nombre.strip().lower() #Para que no existan fallos relacionados a espacios, mayusculas o minusculas la función debe normalizar las entradas.
     rut_norm = rut_dueño.strip().upper() #Aquí aplica lo mismo que en el caso del nombre.
+    
     for m in mascotas: #Itera sobre cada mascosa "m" en la lista global "mascotas".
         if excluir_id is not None and m.get("id") == excluir_id: #Para que la f
             continue
-    if m.get("nombre", "").strip().lower() == nombre_norm and m.get("rut_dueño", "").strip().upper() == rut_norm: #Esta función realiza una doble comprobación para la mascota actual(m). Comprueba si el nombre normalizado coincide con el de la entrada, y hace lo mismo con el RUT. Si ambas condiciones son verdaderas, se ha encontrado un duplicado y la función inmediatamente devuelve un True.
-        return True 
+    
+        if( 
+            m.get("nombre", "").strip().lower() == nombre_norm and 
+            m.get("rut_dueño", "").strip().upper() == rut_norm #Esta función realiza una doble comprobación para la mascota actual(m). Comprueba si el nombre normalizado coincide con el de la entrada, y hace lo mismo con el RUT. Si ambas condiciones son verdaderas, se ha encontrado un duplicado y la función inmediatamente devuelve un True.
+        ):
+            return True 
     return False #Si el ciclo for termina de recorrer todas las mascotas sin encontrar una coincidencia que cumpla ambas condiciones, la función devuelve False, indicando que no existe un duplicado.
 
 #--- CRUD ---
@@ -95,24 +102,29 @@ def add_mascota(nombre, especie, raza, edad, rut_dueño): #Función para registr
     return mascota #La función devuelve el diccionario de la mascota que acaba de ser creada y añadida.
 
 #UPDATE
-def update_mascota(mid: int, updates): #Función para actualizar registro de mascotas
-    m = encontrar_mascota_por_id(mid)
-    if not m:
-        raise ValueError("Mascota no encontrada.")
-
-
-    nuevo_nombre = updates.get("nombre", m["nombre"]).strip()
-    nuevo_rut = updates.get("rut_dueño", m["rut_dueño"]).strip().upper()
-    if duplicado_mascota(nuevo_nombre, nuevo_rut, exclude_id=mid):
-        raise ValueError("Actualización produciría un duplicado (misma mascota ya registrada para ese RUT).")
-
-    for key in ("nombre", "especie", "raza", "edad", "rut_dueño"):
-        if key in updates and updates[key] is not None:
-            if key == "edad":
-                m[key] = int(updates[key])
-            else:
-                m[key] = updates[key].strip()
-    return m
+def update_mascota(id_mascota, nombre="", especie="", raza="", edad=None, rut_dueño=""):
+    """
+    Actualiza los datos de una mascota según su ID.
+    Si un campo se deja en blanco, se mantiene el valor actual.
+    """
+    for m in mascotas:
+        if m["id"] == id_mascota:
+            # Si el campo NO está vacío, se actualiza; si está vacío, se conserva el anterior
+            if nombre.strip():
+                m["nombre"] = nombre.strip()
+            if especie.strip():
+                m["especie"] = especie.strip()
+            if raza.strip():
+                m["raza"] = raza.strip()
+            if edad not in (None, ""):
+                try:
+                    m["edad"] = int(edad)
+                except ValueError:
+                    raise ValueError("La edad debe ser un número entero.")
+            if rut_dueño.strip():
+                m["rut_dueño"] = rut_dueño.strip().upper()
+            return m  # Retorna la mascota actualizada
+    raise ValueError("No se encontró mascota con ese ID.")
 
 #DELETE
 def delete_mascota(mid: int): #Esta función se encarga de eliminar una mascota espedifica de la colección
@@ -164,13 +176,21 @@ def registro_atencion(id_mascota: int, fecha: str, descripcion: str, costo: floa
     return atencion
 
 
+
 def lista_atenciones_por_mascota(id_mascota: int): #Esta función tiene como objetivo filtrar y mostrar todas las atenciones veterinarias que han sido registradas para una mascota especifica determinada por su ID.
+    mascota = encontrar_mascota_por_id(id_mascota)
+    if not mascota:
+        print("Mascota no encontrada.")
+        return
+
     res = [a for a in atenciones if a.get("id_mascota") == id_mascota]
     if not res:
-        print("No hay atenciones para esa mascota.")
+        print(f"No hay atenciones para {mascota['nombre']}.")
         return
+
+    print(f"\nAtenciones de {mascota['nombre']}):")
     for a in res:
-        print(f"ID: {a['id']} | Fecha: {a['fecha']} | Descripción: {a['descripcion']} | Costo: {a['costo']} | Veterinario: {a['veterinario']}")
+        print(f"Atención ID: {a['id']} | Fecha: {a['fecha']} | Descripción: {a['descripcion']} | Costo: {a['costo']} | Veterinario: {a['veterinario']}")
 
 
 #--- REPORTES ---
@@ -181,7 +201,7 @@ def gasto_por_rut(rut_dueño: str): #Tiene como objetivo calcular y mostrar el g
     if not mascotas_del_dueño: 
         print("No se encontraron mascotas para ese RUT.") #Si la lista está vacía, imprime un mensaje de no encontrado y finaliza.
         return
-    total = 0.0 #Contador de gasto total
+    total = 0 #Contador de gasto total
     detalle = [] #Lista que almacenará tuplas con el desglose del gasto
     for m in mascotas_del_dueño: #Inicio de bucle del cálculo. 
         m_atenciones = [a for a in atenciones if a.get("id_mascota") == m.get("id")] #Para cada mascota filtra la lista global "atenciones" para encontrar solo sus atenciones.
@@ -201,14 +221,14 @@ def exportar_a_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE)
     with open(mascotas_file, mode="w", newline='', encoding='utf-8') as f: #Abre el archivo especificado en modo de escritura
         writer = csv.DictWriter(f, fieldnames=["id", "nombre", "especie", "raza", "edad", "rut_dueño"]) #Crea un objeto "dicwriter" qie es ideal para escribir diccionarios en CSV
         writer.writeheader()
-    for m in mascotas: #Itera sobre cada diccionario de mascota.
-        writer.writerow({k: m.get(k, "") for k in ("id", "nombre", "especie", "raza", "edad", "rut_dueño")}) #Escribe cada mascota como una fila.
+        for m in mascotas: #Itera sobre cada diccionario de mascota.
+            writer.writerow({k: m.get(k, "") for k in ("id", "nombre", "especie", "raza", "edad", "rut_dueño")}) #Escribe cada mascota como una fila.
 # Exportar atenciones
     with open(atenciones_file, mode="w", newline='', encoding='utf-8') as f: #El proceso se repite de manera identica para la lista "atenciones"
         writer = csv.DictWriter(f, fieldnames=["id", "id_mascota", "fecha", "descripcion", "costo", "veterinario"])
         writer.writeheader()
-    for a in atenciones:
-        writer.writerow({k: a.get(k, "") for k in ("id", "id_mascota", "fecha", "descripcion", "costo", "veterinario")})
+        for a in atenciones:
+            writer.writerow({k: a.get(k, "") for k in ("id", "id_mascota", "fecha", "descripcion", "costo", "veterinario")})
     print(f"Datos exportados a: {mascotas_file} y {atenciones_file}") #Imprime un mensaje confirmando que la operación se completó exitosamente.
 
 
@@ -224,16 +244,16 @@ def importar_de_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE
             for row in reader: #El código itera sobre cada "row" (diccionario) del lector.
                 try: #Utiliza try/except para intentar convertir el id a entero. Si la conversión falla, esa fila se salta "continue".
                     mid = int(row.get("id", "0"))
+                    loaded_mascotas.append({ #Creación del diccionario
+                        "id": mid,
+                        "nombre": row.get("nombre", "").strip(),
+                        "especie": row.get("especie", "").strip(),
+                        "raza": row.get("raza", "").strip(),
+                        "edad": int(row.get("edad") or 0),
+                        "rut_dueño": row.get("rut_dueño", "").strip().upper(),
+                    })
                 except ValueError:
                     continue
-            loaded_mascotas.append({ #Creación del diccionario
-                "id": mid,
-                "nombre": row.get("nombre", "").strip(),
-                "especie": row.get("especie", "").strip(),
-                "raza": row.get("raza", "").strip(),
-                "edad": int(row.get("edad") or 0),
-                "rut_dueño": row.get("rut_dueño", "").strip().upper(),
-            })
     else:
         print(f"Archivo {mascotas_file} no encontrado. Se creará al exportar.")
 
@@ -245,16 +265,16 @@ def importar_de_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE
                     aid = int(row.get("id", "0"))
                     id_masc = int(row.get("id_mascota", "0"))
                     costo = float(row.get("costo", "0"))
+                    loaded_atenciones.append({
+                        "id": aid,
+                        "id_mascota": id_masc,
+                        "fecha": row.get("fecha", "").strip(),
+                        "descripcion": row.get("descripcion", "").strip(),
+                        "costo": costo,
+                        "veterinario": row.get("veterinario", "").strip(),
+                    })
                 except ValueError:
                     continue
-                loaded_atenciones.append({
-                    "id": aid,
-                    "id_mascota": id_masc,
-                    "fecha": row.get("fecha", "").strip(),
-                    "descripcion": row.get("descripcion", "").strip(),
-                    "costo": costo,
-                    "veterinario": row.get("veterinario", "").strip(),
-                })
     else:
         print(f"Archivo {atenciones_file} no encontrado. Se creará al exportar.")
 
@@ -299,6 +319,8 @@ def input_mascota_interactivo(): #Esta función maneja el flujo interactivo para
         mascota = add_mascota(nombre, especie, raza, edad, rut_dueño)
         print(f"Mascota registrada con ID {mascota['id']}")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error al registrar mascota: {e}")
 
 
@@ -317,7 +339,7 @@ def input_update_mascota(): #Maneja el flujo interactivo para modificar los dato
         nueva_edad_str = input(f"Edad [{m['edad']}]: ") #Valor de entrada original (string)
         nueva_edad = m['edad'] if nueva_edad_str.strip() == "" else validate_positive_int(nueva_edad_str, "Edad") #Valor procesado, validad y convertido a nro entero (int)
         nuevo_rut_str = input(f"RUT dueño [{m['rut_dueño']}]: ")
-        nuevo_rut = m['rut_dueño'] if nuevo_rut_str.strip() == "" else validate_rut(nuevo_rut_str)
+        nuevo_rut = m['rut_dueño'] if nuevo_rut_str.strip() == "" else validar_rut(nuevo_rut_str)
 
 
         updated = update_mascota(mid, nombre=nuevo_nombre, especie=nueva_especie, raza=nueva_raza, edad=nueva_edad, rut_dueño=nuevo_rut)
@@ -349,7 +371,7 @@ def input_registrar_atencion(): #Función para registrar una nueva atención vet
         descripcion = input("Descripción: ")
         costo = validate_positive_float(input("Costo: "), "Costo")
         vet = input("Veterinario: ")
-        at = validar_fecha(mid, fecha, descripcion, costo, vet)
+        at = registro_atencion(mid, fecha, descripcion, costo, vet)
         print(f"Atención registrada con ID {at['id']}")
     except Exception as e:
         print(f"Error al registrar atención: {e}")
