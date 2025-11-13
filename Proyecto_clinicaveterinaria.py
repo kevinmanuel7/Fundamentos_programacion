@@ -12,13 +12,17 @@ cont_atencion_id = 1
 
 
 
-DATA_DIR = "data"
+DATA_DIR = "data" #Rutas de archivo que el programa usará para organizar y acceder a los datos CSV del sistema
 MASCOTAS_FILE = os.path.join(DATA_DIR, "mascotas.csv")
 ATENCIONES_FILE = os.path.join(DATA_DIR, "atenciones.csv")
+
+
 
 def aseg_data_dir():
     if not os.path.exists(DATA_DIR): #Para verificar la ruta de DATA_DIR
         os.makedirs(DATA_DIR) #Si no existe crea el directorio (solo se ejecuta si la condición if es verdadera, es decir, no existe)
+
+
 
 def validar_int(value_str, field_name="valor"): #Para convertir una cadena de texto en un número entero
     try:
@@ -26,12 +30,16 @@ def validar_int(value_str, field_name="valor"): #Para convertir una cadena de te
         return val #Si la conversión es exitosa, la función devuelve el nro entero resultante
     except ValueError: #Si la conversion falla, python captura el error.
         raise ValueError(f"{field_name} debe ser un número entero.") #En lugar de dejar que el programa se detenga con el msje predeterminado de python, la función levanta la excepción con un mensaje personalizado.
-    
+
+
+
 def validate_positive_int(value_str, field_name="valor"): #Sirve para asegurar que un valor de entrada sea un nro entero y ademas, positivo o cero (no negativo).
     val = validar_int(value_str, field_name) 
     if val < 0: #Si val es menor a 0, lanzará un error con el mensaje de abajo.
         raise ValueError(f"{field_name} debe ser positivo o cero.")
     return val #Si el valor cumple los requisitos (es entero y =+0), la función devuelve el nro entero.
+
+
 
 def validate_positive_float(value_str, field_name="valor"): #Función identica a la de arriba, pero para manejar valores decimales.
     try:
@@ -42,11 +50,15 @@ def validate_positive_float(value_str, field_name="valor"): #Función identica a
         raise ValueError(f"{field_name} debe ser positivo o cero.")
     return val #Si la caden se convirtió exitosamente a un float y el valor es += 0, la función devuelve un nro decimal.
 
+
+
 def validar_rut(rut: str): #Validación básica para RUT 
     rut = rut.strip() #Elimina cualquier espacio en blanco al inicio o al final de la cadena de entrada.
     if not re.fullmatch(r"\d{1,8}-[0-9kK]", rut): #Utiliza esta función para verificar si toda la cadena limpia coincide con el patron esperado ("\d{1-8}"" de 1 a 8 dígitos numéricos(0-9), "-"" un guión, "[0-9kK]" un dígito final que puede ser un nro 0-9 o una letras k-K)
         raise ValueError("RUT inválido. Formato esperado: 12345678-9") #si re.fullmatch falla se lanza un ValueError
     return rut.upper() #Si la validación es exitosa, convierte toda la cadena en mayúsculas y la devuelve.
+
+
 
 def validar_fecha(date_str: str): #Para validar una cadena de texto que representa una fecha válida y sigue un formato especifico.
     try: #Está envuelta en un bloque try/except porque la conversión puede fallar de dos maneras: si el formato es incorrecto, o la fecha no existe.
@@ -55,11 +67,15 @@ def validar_fecha(date_str: str): #Para validar una cadena de texto que represen
     except ValueError: #Si se captura un nuevo error durante el análisis, la función lanza un ValueError especificando el formato correcto esperado.
         raise ValueError("Fecha inválida. Formato esperado AAAA-MM-DD")
     
+
+
 def encontrar_mascota_por_id(mid: int): #Esta función tiene la tarea de buscar y devolver una mascota especifica dentro de una lista o colección.
     for m in mascotas: #Esta función recorre cada elemento de la colección "mascotas"
         if m.get("id") == mid: #Intenta obtener el valor asociado a la clave id. Y lo compara con el valor "id" que se pasó como argumento a la función mid(mascotaid)
             return m #Si la condición es verdadera (si el id de mascota coincide con el mid) la función devuelve inmediatamente el diccionario completo de la mascota(m) y termina la ejecución.
     return None #Si el ciclo for termina de recorrer toda la lista sin encontrar ninguna coincidencia, finalmente la función devuelve el valor especial None.
+
+
 
 def duplicado_mascota(nombre: str, rut_dueño: str, excluir_id: int = None): #Esta función se utiliza para verificar si ya existe una mascota inscrita con el mismo nombre bajo el mismo dueño (rut).
     nombre_norm = nombre.strip().lower() #Para que no existan fallos relacionados a espacios, mayusculas o minusculas la función debe normalizar las entradas.
@@ -75,6 +91,8 @@ def duplicado_mascota(nombre: str, rut_dueño: str, excluir_id: int = None): #Es
         ):
             return True 
     return False #Si el ciclo for termina de recorrer todas las mascotas sin encontrar una coincidencia que cumpla ambas condiciones, la función devuelve False, indicando que no existe un duplicado.
+
+
 
 #--- CRUD ---
 #CREATE
@@ -101,6 +119,8 @@ def add_mascota(nombre, especie, raza, edad, rut_dueño): #Función para registr
     cont_mascota_id += 1 #El contador global se incrementa en 1
     return mascota #La función devuelve el diccionario de la mascota que acaba de ser creada y añadida.
 
+
+
 #UPDATE
 def update_mascota(id_mascota, nombre="", especie="", raza="", edad=None, rut_dueño=""):
     """
@@ -126,6 +146,8 @@ def update_mascota(id_mascota, nombre="", especie="", raza="", edad=None, rut_du
             return m  # Retorna la mascota actualizada
     raise ValueError("No se encontró mascota con ese ID.")
 
+
+
 #DELETE
 def delete_mascota(mid: int): #Esta función se encarga de eliminar una mascota espedifica de la colección
     global atenciones
@@ -137,6 +159,8 @@ def delete_mascota(mid: int): #Esta función se encarga de eliminar una mascota 
     atenciones = [a for a in atenciones if a.get("id_mascota") != mid]
     return True
 
+
+
 #READ
 def list_mascotas(): #Esta función tiene la tarea de imprimir en la consola una lista formateada de todas las mascotas registradas en el sistema.
     if not mascotas:
@@ -146,8 +170,9 @@ def list_mascotas(): #Esta función tiene la tarea de imprimir en la consola una
     for m in mascotas:
         print(f"ID: {m['id']} | Nombre: {m['nombre']} | Especie: {m['especie']} | Raza: {m['raza']} | Edad: {m['edad']} | RUT Dueño: {m['rut_dueño']}")
 
-#--- ATENCIONES ---
 
+
+#--- ATENCIONES ---
 def registro_atencion(id_mascota: int, fecha: str, descripcion: str, costo: float, veterinario: str): #Función para crear y registrar una nueva atención veterinaria asociada a una mascota existente
     global cont_atencion_id
     m = encontrar_mascota_por_id(id_mascota)
@@ -193,6 +218,7 @@ def lista_atenciones_por_mascota(id_mascota: int): #Esta función tiene como obj
         print(f"Atención ID: {a['id']} | Fecha: {a['fecha']} | Descripción: {a['descripcion']} | Costo: {a['costo']} | Veterinario: {a['veterinario']}")
 
 
+
 #--- REPORTES ---
 def gasto_por_rut(rut_dueño: str): #Tiene como objetivo calcular y mostrar el gasto veterinario total incurrido por un RUT, desglosando este gasto por cada una de sus mascotas
     rut_norm = rut_dueño.strip().upper() #Normaliza el RUT de entrada (limpia espacios y convierte a mayúsculas)
@@ -214,6 +240,7 @@ def gasto_por_rut(rut_dueño: str): #Tiene como objetivo calcular y mostrar el g
         print(f"- Mascota ID {m['id']} {m['nombre']}: {sum_m} (Atenciones: {len(m_at)})")
 
 
+
 #--- CSV IMPORTACIÓN Y EXPORTACIÓN ---
 def exportar_a_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE): #Es la encargada de guardar los datos. Toma los datos de las colecciones globales y los escribe en archivos de texto con el formato CSV
     aseg_data_dir() #Llama a una función auxiliar para asegurar que el directorio donde se guardaran los archivos exista.
@@ -230,6 +257,7 @@ def exportar_a_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE)
         for a in atenciones:
             writer.writerow({k: a.get(k, "") for k in ("id", "id_mascota", "fecha", "descripcion", "costo", "veterinario")})
     print(f"Datos exportados a: {mascotas_file} y {atenciones_file}") #Imprime un mensaje confirmando que la operación se completó exitosamente.
+
 
 
 def importar_de_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE): #Esta función es responsable de la inicialización y carga de datos en el sistema.
@@ -288,7 +316,6 @@ def importar_de_csv(mascotas_file=MASCOTAS_FILE, atenciones_file=ATENCIONES_FILE
     cont_mascota_id = max_mid + 1 #El contador global se establece en el máximo ID encontrado más uno. Esto garantiza que si se añaden nuevas mascotas despues de la importanción, estas tendrán un ID único que no chocará con los datos cargados.
     cont_atencion_id = max_aid + 1 #El mismo proceso que con mascotas
 
-
     print(f"Importación completada. Mascotas: {len(mascotas)}, Atenciones: {len(atenciones)}")
 
 
@@ -306,6 +333,7 @@ def mostrar_menu(): #Esta función está encargada de presentar las opciones al 
     print("8. Exportar datos a CSV")
     print("9. Importar datos desde CSV")
     print("0. Salir")
+
 
 
 #--- INPUT ---
